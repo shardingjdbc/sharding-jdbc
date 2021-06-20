@@ -23,6 +23,7 @@ import org.apache.shardingsphere.test.integration.env.EnvironmentPath;
 import org.apache.shardingsphere.test.integration.junit.container.storage.ShardingSphereStorageContainer;
 import org.apache.shardingsphere.test.integration.junit.param.model.ParameterizedArray;
 import org.h2.tools.RunScript;
+import org.testcontainers.shaded.com.google.common.collect.ImmutableMap;
 
 import javax.sql.DataSource;
 import java.io.File;
@@ -30,11 +31,14 @@ import java.io.FileReader;
 import java.sql.Connection;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 /**
  * H2 container.
  */
 public final class H2Container extends ShardingSphereStorageContainer {
+    
+    private static final ConcurrentSkipListSet<String> DATABASES = new ConcurrentSkipListSet<>();
     
     public H2Container(final ParameterizedArray parameterizedArray) {
         super("h2-embedded", "h2:fake", new H2DatabaseType(), true, parameterizedArray);
@@ -47,9 +51,11 @@ public final class H2Container extends ShardingSphereStorageContainer {
         // TODO initialize SQL script
         File file = new File(EnvironmentPath.getInitSQLFile(getDatabaseType(), getParameterizedArray().getScenario()));
         for (Map.Entry<String, DataSource> each : getDataSourceMap().entrySet()) {
-            try (Connection connection = each.getValue().getConnection();
-                 FileReader reader = new FileReader(file)) {
-                RunScript.execute(connection, reader);
+            if (!DATABASES.contains(each.getKey()) && DATABASES.add(each.getKey())) {
+                try (Connection connection = each.getValue().getConnection();
+                     FileReader reader = new FileReader(file)) {
+                    RunScript.execute(connection, reader);
+                }
             }
         }
     }
@@ -60,8 +66,15 @@ public final class H2Container extends ShardingSphereStorageContainer {
     }
     
     @Override
+    public synchronized Map<String, DataSource> getDataSourceMap() {
+        ImmutableMap.Builder<String, DataSource> builder = ImmutableMap.builder();
+        getDatabases().forEach(e -> builder.put(e, createDataSource(e)));
+        return builder.build();
+    }
+    
+    @Override
     protected String getUrl(final String dataSourceName) {
-        return String.format("jdbc:h2:mem:%s;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false;MODE=MySQL", Objects.isNull(dataSourceName) ? "test_db" : dataSourceName);
+        return String.format("jdbc:h2:mem:%s;DB_CLOSE_ON_EXIT=FALSE;DATABASE_TO_UPPER=false;MODE=MySQL", Objects.isNull(dataSourceName) ? "test_db" : dataSourceName);
     }
     
     @Override

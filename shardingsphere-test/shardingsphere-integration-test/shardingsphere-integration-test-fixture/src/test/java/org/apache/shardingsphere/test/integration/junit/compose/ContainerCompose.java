@@ -19,6 +19,9 @@ package org.apache.shardingsphere.test.integration.junit.compose;
 
 import lombok.AccessLevel;
 import lombok.Getter;
+import org.apache.shardingsphere.driver.jdbc.core.datasource.ShardingSphereDataSource;
+import org.apache.shardingsphere.test.integration.env.EnvironmentType;
+import org.apache.shardingsphere.test.integration.env.IntegrationTestEnvironment;
 import org.apache.shardingsphere.test.integration.junit.container.ShardingSphereContainer;
 import org.apache.shardingsphere.test.integration.junit.container.adapter.ShardingSphereAdapterContainer;
 import org.apache.shardingsphere.test.integration.junit.container.adapter.impl.ShardingSphereJDBCContainer;
@@ -187,8 +190,26 @@ public abstract class ContainerCompose extends ExternalResource implements Close
         }
     }
     
+    /**
+     * Close datasource.
+     */
+    public void closeDataSource() {
+        getDataSourceMap().forEach((key, value) -> {
+            if (value instanceof ShardingSphereDataSource) {
+                ((ShardingSphereDataSource) value).getMetaDataContexts().getExecutorEngine().close();
+            }
+        });
+    }
+    
     @Override
     public void close() {
         containers.forEach(Startable::close);
+    }
+    
+    @Override
+    public void after() {
+        if (EnvironmentType.DOCKER != IntegrationTestEnvironment.getInstance().getEnvType()) {
+            close();
+        }
     }
 }

@@ -40,19 +40,24 @@ public final class ComposeManager extends ExternalResource {
      * @return container compose
      */
     public ContainerCompose getOrCreateCompose(final ParameterizedArray parameterizedArray) {
-        String key = generateKey(parameterizedArray);
-        if (composeMap.containsKey(key)) {
-            return composeMap.get(key);
+        if (EnvironmentType.DOCKER == IntegrationTestEnvironment.getInstance().getEnvType()) {
+            String key = generateKey(parameterizedArray);
+            if (composeMap.containsKey(key)) {
+                return composeMap.get(key);
+            }
+            ContainerCompose result = createCompose(parameterizedArray);
+            composeMap.put(key, result);
+            return result;
         }
-        ContainerCompose result;
+        return createCompose(parameterizedArray);
+    }
+    
+    private ContainerCompose createCompose(final ParameterizedArray parameterizedArray) {
         // TODO fix sharding_governance
         if ("sharding_governance".equals(parameterizedArray.getScenario())) {
-            result = new GovernanceContainerCompose(suiteName, parameterizedArray);
-        } else {
-            result = new SimpleContainerCompose(suiteName, parameterizedArray);
+            return new GovernanceContainerCompose(suiteName, parameterizedArray);
         }
-        composeMap.put(key, result);
-        return result;
+        return new SimpleContainerCompose(suiteName, parameterizedArray);
     }
     
     private String generateKey(final ParameterizedArray parameter) {
