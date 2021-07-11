@@ -37,6 +37,7 @@ import org.apache.shardingsphere.sharding.rule.ShardingRule;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.DMLStatement;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -46,10 +47,15 @@ import java.util.Optional;
  */
 public final class ShardingSQLRouter implements SQLRouter<ShardingRule> {
     
-    @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
     public RouteContext createRouteContext(final LogicSQL logicSQL, final ShardingSphereMetaData metaData, final ShardingRule rule, final ConfigurationProperties props) {
         RouteContext result = new RouteContext();
+        route(logicSQL, metaData, rule, props, result);
+        return result;
+    }
+    
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private void route(final LogicSQL logicSQL, final ShardingSphereMetaData metaData, final ShardingRule rule, final ConfigurationProperties props, final RouteContext result) {
         SQLStatement sqlStatement = logicSQL.getSqlStatementContext().getSqlStatement();
         Optional<ShardingStatementValidator> validator = ShardingStatementValidatorFactory.newInstance(sqlStatement);
         validator.ifPresent(optional -> optional.preValidate(rule, logicSQL.getSqlStatementContext(), logicSQL.getParameters(), metaData.getSchema()));
@@ -58,9 +64,8 @@ public final class ShardingSQLRouter implements SQLRouter<ShardingRule> {
         if (sqlStatement instanceof DMLStatement && needMergeShardingValues) {
             mergeShardingConditions(shardingConditions);
         }
-        ShardingRouteEngineFactory.newInstance(rule, metaData, logicSQL.getSqlStatementContext(), shardingConditions, props).route(result, rule);
+        ShardingRouteEngineFactory.newInstance(rule, metaData, logicSQL.getSqlStatementContext(), shardingConditions, props, result.getRouteUnits()).route(result, rule);
         validator.ifPresent(v -> v.postValidate(rule, logicSQL.getSqlStatementContext(), result, metaData.getSchema()));
-        return result;
     }
     
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -93,7 +98,10 @@ public final class ShardingSQLRouter implements SQLRouter<ShardingRule> {
     @Override
     public void decorateRouteContext(final RouteContext routeContext,
                                      final LogicSQL logicSQL, final ShardingSphereMetaData metaData, final ShardingRule rule, final ConfigurationProperties props) {
-        // TODO
+        Collection<String> shardingBroadcastLogicTableNames = rule.getShardingBroadcastLogicTableNames(logicSQL.getSqlStatementContext().getTablesContext().getTableNames());
+        if (!shardingBroadcastLogicTableNames.isEmpty()) {
+            route(logicSQL, metaData, rule, props, routeContext);
+        }
     }
     
     @Override
