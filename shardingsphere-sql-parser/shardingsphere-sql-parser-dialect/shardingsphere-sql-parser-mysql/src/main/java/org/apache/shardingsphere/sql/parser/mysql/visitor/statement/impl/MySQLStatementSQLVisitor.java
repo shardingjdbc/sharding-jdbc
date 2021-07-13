@@ -886,6 +886,8 @@ public abstract class MySQLStatementSQLVisitor extends MySQLStatementBaseVisitor
             ASTNode expr = visitExpr(ctx.expr());
             if (expr instanceof ColumnSegment) {
                 return new ColumnOrderByItemSegment((ColumnSegment) expr, orderDirection);
+            } else if (expr instanceof ExpressionSegment) {
+                return new ExpressionOrderByItemSegment(ctx.expr().getStart().getStartIndex(), ctx.expr().getStop().getStopIndex(), ctx.expr().getText(), orderDirection, (ExpressionSegment) expr);
             } else {
                 return new ExpressionOrderByItemSegment(ctx.expr().getStart().getStartIndex(), ctx.expr().getStop().getStopIndex(), ctx.expr().getText(), orderDirection);
             }
@@ -1254,13 +1256,13 @@ public abstract class MySQLStatementSQLVisitor extends MySQLStatementBaseVisitor
         }
         if (projection instanceof CommonExpressionSegment) {
             CommonExpressionSegment segment = (CommonExpressionSegment) projection;
-            ExpressionProjectionSegment result = new ExpressionProjectionSegment(segment.getStartIndex(), segment.getStopIndex(), segment.getText());
+            ExpressionProjectionSegment result = new ExpressionProjectionSegment(segment.getStartIndex(), segment.getStopIndex(), segment.getText(), (ExpressionSegment) projection);
             result.setAlias(alias);
             return result;
         }
         // FIXME :For DISTINCT()
         if (projection instanceof ColumnSegment) {
-            ExpressionProjectionSegment result = new ExpressionProjectionSegment(ctx.start.getStartIndex(), ctx.stop.getStopIndex(), ctx.getText());
+            ExpressionProjectionSegment result = new ExpressionProjectionSegment(ctx.start.getStartIndex(), ctx.stop.getStopIndex(), ctx.getText(), (ExpressionSegment) projection);
             result.setAlias(alias);
             return result;
         }
@@ -1274,7 +1276,7 @@ public abstract class MySQLStatementSQLVisitor extends MySQLStatementBaseVisitor
         if (projection instanceof BinaryOperationExpression) {
             int startIndex = ((BinaryOperationExpression) projection).getStartIndex();
             int stopIndex = null != alias ? alias.getStopIndex() : ((BinaryOperationExpression) projection).getStopIndex();
-            ExpressionProjectionSegment result = new ExpressionProjectionSegment(startIndex, stopIndex, ((BinaryOperationExpression) projection).getText());
+            ExpressionProjectionSegment result = new ExpressionProjectionSegment(startIndex, stopIndex, ((BinaryOperationExpression) projection).getText(), (ExpressionSegment) projection);
             result.setAlias(alias);
             return result;
         }
@@ -1282,8 +1284,9 @@ public abstract class MySQLStatementSQLVisitor extends MySQLStatementBaseVisitor
             return projection;
         }
         LiteralExpressionSegment column = (LiteralExpressionSegment) projection;
-        ExpressionProjectionSegment result = null == alias ? new ExpressionProjectionSegment(column.getStartIndex(), column.getStopIndex(), String.valueOf(column.getLiterals()))
-                : new ExpressionProjectionSegment(column.getStartIndex(), ctx.alias().stop.getStopIndex(), String.valueOf(column.getLiterals()));
+        ExpressionProjectionSegment result = null == alias ? new ExpressionProjectionSegment(column.getStartIndex(), column.getStopIndex(), String.valueOf(column.getLiterals()),
+                (ExpressionSegment) projection)
+                : new ExpressionProjectionSegment(column.getStartIndex(), ctx.alias().stop.getStopIndex(), String.valueOf(column.getLiterals()), (ExpressionSegment) projection);
         result.setAlias(alias);
         return result;
     }
